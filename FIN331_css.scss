@@ -1,0 +1,56 @@
+/*-- scss:defaults --*/
+
+$body-bg: #ffffff;
+$body-color: #001641;
+$link-color: #42affa;
+$presentation-line-height: 1.2;
+
+
+// fonts
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+$font-family-sans-serif: Montserrat, sans-serif;
+
+// colors
+
+// headings
+$presentation-h1-font-size:	1.8em;
+$presentation-h2-font-size:	1.2em;
+
+
+/*-- scss:rules --*/
+
+.reveal .slide blockquote {
+  border-left: 3px solid $text-muted;
+  padding-left: 0.5em;
+}
+
+.reveal h2 {
+  margin-bottom: 50px;
+}
+
+.reveal p {
+  font-size: 1.1em;
+}
+
+// numbered list - levels 1 and 2
+.reveal ol li {
+  font-size: 1.1em;
+}
+
+.reveal ol li ol li {
+  font-size: 0.8em;
+}
+
+// unordered list - levels 1 and 2
+.reveal ul li {
+  font-size: 1.1em;
+}
+
+.reveal ul li ul li {
+  font-size: 0.8em;
+}
+
+.reveal .slide-logo {
+  height: 125px !important;
+  max-height: unset !important;
+}
