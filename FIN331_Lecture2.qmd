@@ -132,7 +132,7 @@ Plot.plot({
 
 ## Recent movements in the term spread
 
-![](term_spread.svg){fig-align="center"}
+![](Term_Spread.svg){fig-align="center"}
 
 ## The repricing model
 
