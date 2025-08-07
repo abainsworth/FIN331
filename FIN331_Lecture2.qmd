@@ -1,0 +1,317 @@
+---
+title: "Interest Rate Risk"
+subtitle: "FIN 331 Lecture 2"
+author: 
+  name: "Andrew Ainsworth"
+  affiliation: "University of Wollongong"
+format: 
+  revealjs:
+    theme: FIN331_css_L2.scss
+    html-table-processing: none
+    #smaller: true
+execute: 
+  eval: true
+  echo: false
+---
+
+## Lecture outline
+
+::: {}
+- Why do banks face interest rate risk?
+- Refresher on bond prices
+- Historical movements of interest rates in Australia
+- The repricing model
+  - What is it?
+  - What are the weakness of the model?
+- The maturity model
+  - What is it?
+  - What are the weakness of the model?
+:::
+
+-   Reading
+    -   Ch 8, 8A, 9A
+
+
+## Interest rate risk
+
+- A mismatch between the maturity of interest rate sensitive assets and the maturity of interest rate sensitive liabilities leads to interest rate risk
+  - e.g. Banks funding 30-year fixed interest rate home loans with 1-month term deposits
+- Banks face **reinvestment risk** if the maturity of assets is shorter than the maturity of liabilities
+- Banks face **refinancing risk** if the maturity of liabilities is shorter than the maturity of assets
+- Monetary policy and expectations surrounding changes in central bank interest rates are a key driver of market interest rates
+
+
+## Refresher on bond pricing 
+
+- Hopefully, you recall the bond pricing equations:
+
+\begin{align}
+P &= \frac{C}{(1+y)} + \frac{C}{(1+y)^2} + \frac{C}{(1+y)^3} + ... + \frac{F + C}{(1+y)^N} \\
+P &= \frac{C}{y} [1-(1+y)^{-N}] + \frac{F}{(1+y)^N}
+\end{align}
+
+- Yield to maturity ($y$)
+  - There is a negative relation between interest rate changes and price changes on financial securities
+- Time remaining to maturity ($N$)
+  - The shorter the time to maturity the closer the price is to the face value of the security
+- Coupon rate ($C$)
+  - A higher coupon rate leads to a smaller price change for a given change in yield to maturity 
+- Face value ($F$)
+
+
+## Refresher on bond pricing
+
+- How do bond prices vary with yield, coupon and time to maturity?
+
+```{r}
+#| output: false
+library(tidyverse)
+
+bondpricer <- function(ytm, coup, ttm) {
+  if(ytm==0) {
+    price = 1000*(coup/100)*ttm+1000}
+  else {
+    price = (1000*(coup/100))/(ytm)*(1-((1+ytm)^-ttm))+1000/((1+ytm)^ttm)}
+}
+
+yields <- tibble(Yield = seq(from = 0, to = 0.15, by = 0.01))
+coup <- tibble(Coupon = seq(from = 0, to = 10, by = 0.5))
+ttm <- tibble(Years = seq(from = 2, to = 30, by = 2))
+
+bond_prices <- crossing(yields, coup, ttm)
+
+bondpricer_v = Vectorize(bondpricer)
+
+bond_prices <- bond_prices %>%
+  mutate(Price = bondpricer_v(Yield, Coupon, Years))
+
+ojs_define(bond_prices_ojs = bond_prices)
+
+```
+
+```{ojs}
+//| panel: sidebar
+
+viewof Coupon_pick = Inputs.range(
+  [0, 10], 
+  {value: 5, step: 0.5, label: "Coupon (%)"}
+)
+
+viewof ttm_pick = Inputs.range(
+  [2, 30], 
+  {value: 10, step: 2, label: "Time to Maturity"}
+)
+
+```
+
+```{ojs}
+
+filtered = transpose(bond_prices_ojs).filter(function(pfra) {
+  return Coupon_pick == pfra.Coupon & ttm_pick == pfra.Years;
+})
+
+Plot.plot({
+  x: { label: "Yield", tickFormat: ".0%", ticks: 16, line: true, grid: true, domain: [0, 0.16]},
+  y: { label: "Price", zero:true, line: true, grid: true, domain: [0, 4000]},
+  marks: [Plot.line(filtered, { x: "Yield", y: "Price", stroke: "red"})],
+    style: {
+      color: "#0b1554",
+      fontFamily: "Arial",
+      fontSize: "20px",
+      overflow: "visible"
+    },
+    height:500, width: 900, margin: 60
+  })
+
+```
+
+
+## Recent movements in interest rates 
+
+![](yields.svg){fig-align="center"}
+
+## Recent movements in the term spread
+
+![](term_spread.svg){fig-align="center"}
+
+## The repricing model
+
+- The repricing model uses a book value accounting cash flow analysis of the repricing gap between interest income earned on assets and interest expense paid on liabilities
+  - Focus on net interest income
+- The model examines the repricing gaps for rate sensitive assets (RSA) and rate sensitive liabilities (RSL) over different maturities
+  - One day
+  - More than 1 day to 3 months
+  - More than 3 months to 6 months
+  - More than 6 months to 12 months
+  - More than 1 year to 5 years
+  - More than 5 years
+- The repricing gap is measured within a maturity bucket for RSAs and rate sensitive liabilities RSLs
+
+
+## The repricing gap
+
+```{r}
+library(tidyverse)
+library(gt)
+
+bucket <- c("One day", "More than 1 day to 3 months", "More than 3 months to 6 months",
+           "More than 6 months to 12 months", "More than 1 year to 5 years",
+           "More than 5 years")
+assets <- c(20, 30, 70, 90, 40, 10)
+liabilities <- c(30, 40, 85, 70, 30, 5)
+reprice <- data.frame(Bucket = bucket, Assets = assets, Liabilities = liabilities)
+reprice <- reprice %>%
+  mutate(
+    Gap = Assets - Liabilities,
+    "Cum. Gap" = cumsum(Assets - Liabilities))
+
+  
+reprice_tbl <- reprice %>%
+  gt() %>% 
+  cols_width(
+    Bucket ~ px(425),
+    everything() ~ px(140))%>%
+  tab_options(table_body.hlines.style = "none",
+              column_labels.font.weight = "bold",
+              data_row.padding = 3) %>%
+  opt_table_font(font = google_font(name = "Montserrat"), size = 24, color = "#0b1554") %>%
+  tab_style(style = cell_borders(sides = c("t", "b"), color = "#0b1554", weight = px(2)),
+            locations = cells_column_labels()) %>%
+  tab_style(style = cell_borders(sides = c("b"), color = "#0b1554", weight = px(2)),
+            locations = cells_body(columns = everything(), rows = nrow(reprice)))
+
+reprice_tbl
+
+```
+
+- The model measures change in net interest income (NII) for interest rate changes in different maturity buckets
+- Negative gap (RSA < RSL) gives rise to refinancing risk
+  - An increase in interest rates will reduce NII
+  - The bank now has to refinance its liabilities at a higher rate
+- Positive gap (RSA > RSL) gives rise to reinvestment risk
+  - An decrease in interest rates will reduce NII
+  - The bank now earns a lower return on its investments
+
+
+## The impact on net interest income
+
+- $\Delta NII_i$ is the change in net interest income in maturity bucket $i$
+- $GAP_i$ is the dollar size of the gap between the book value of RSAs and RSLs in maturity bucket $i$
+- $\Delta R_i$ is the change in the level of interest rates impacting assets and liabilities in the $i$th bucket
+
+$$\Delta NII_i = GAP_i \times \Delta R_i = (RSA_i - RSL_i) \times \Delta R_i$$
+
+- Note that the repricing model uses book value accounting and asset and liability values are reported at their historic values or costs
+- Any change in interest rates only impacts NII and not the market value of assets and liabilities on the balance sheet
+
+
+## NII and equal changes in interest rates
+
+- We can examine cumulative gaps (CGAP) over different time horizons (e.g. one year) 
+- Let's assume the changes in interest rates on RSAs and RSLs are equal
+- If $CGAP > 0$:
+
+$$R \uparrow \ \implies Interest \ Income \ \uparrow \ > Interest \ Expense \ \uparrow \ \implies NII \uparrow$$
+$$R \downarrow \ \implies Interest \ Income \ \downarrow \ > Interest \ Expense \ \downarrow \ \implies NII \downarrow$$
+
+- If $CGAP < 0$:
+
+$$R \uparrow \ \implies Interest \ Income \ \uparrow \ < Interest \ Expense \ \uparrow \ \implies NII \downarrow$$
+
+$$R \downarrow \ \implies Interest \ Income \ \downarrow \ < Interest \ Expense \ \downarrow \ \implies NII \uparrow$$
+
+## NII and differential interest rates changes
+
+- As we saw earlier the, term spread is not constant
+
+\begin{align}
+\Delta NII &= (RSA \times \Delta R_{RSA}) - (RSL \times \Delta R_{RSL})  \\
+\Delta NII &= \Delta Interest \ Revenue - \Delta Interest \ Expense
+\end{align}
+
+- The correlation is generally positive between the change in the spread between the rates on RSAs and RSLs and the change in NII 
+  - This is not universal as sometimes the change in interest rates can offset the spread effect when measuring the impact on NII
+- If the spread between the rate on RSAs and RSLs increases then this will have a positive impact on NII
+  - Interest income increases by more than interest expense when interest rates rise
+  - Interest income decreases by less than interest expense when interest rates fall
+- If the spread between the rates on RSAs and RSLs decreases then this will have a negative impact on NII 
+  - Interest income increases by less than interest expense when interest rates rise
+  - Interest income decreases by more than interest expense when interest rates fall
+
+
+## Weakness of the repricing model
+
+- Market value effects are ignored
+  - Repricing model only focuses on income effect and ignores balance sheet effects
+- Overaggregation
+  - Aggregating maturities into buckets can ignore the distribution of maturities within the bucket
+- The problem of run-off cash flows
+  - Banks receive cash flows before maturity of the asset/liability which are sensitive to interest rates
+  - e.g. prepayment of mortgage loan, repayment of principal and interest on a loan
+- Cash flows from off-balance-sheet activities are ignored
+  - These cash flows should be included
+  - e.g. cash flows from interest rate futures contracts
+
+
+## The maturity model
+
+- The maturity model takes into account the market value of assets and liabilities
+- There is an inverse relationship between the value of a fixed income security and interest rates
+
+$$\frac{\Delta P}{\Delta R} < 0$$
+
+- An increase in interest rates reduces the market value of assets and liabilities
+- An decrease in interest rates increases the market value of assets and liabilities
+- The dollar price decline from an increase in interest rates increases with time to maturity
+- The percentage price decline from an increase in interest rates decreases with time to maturity
+
+
+## The maturity model
+
+- $M_A$ is the weighted average maturity of assets
+- $M_L$ is the weighted average maturity of liabilities
+
+$$M_i = \sum_{j=1}^{N} W_{ij}M_{ij}{} $$
+
+- $i$ indexes assets (A) or liabilities (L) 
+- $j$ indexes the individual asset or liability
+- $W_{ij}$ is the market value weight of the $jth$ individual asset (liability) as a proportion of all assets (liabilities)
+- $M_{ij}$ is the maturity of the $jth$ individual asset or liability
+
+## The maturity model
+
+- The same principles apply for a portfolio of securities as for individual securities
+- The bank's sensitivity to interest rates depends on the maturity gap
+- Banks usually have $M_A > M_L$
+- We know that 
+
+\begin{align}
+Equity &= Assets - Liabilities \\
+\Delta Equity &= \Delta Assets - \Delta Liabilities
+\end{align}
+
+- If $M_A > M_L$ and $\downarrow R \implies \Delta Equity \uparrow$ 
+- If $M_A > M_L$ and $\uparrow R \implies \Delta Equity \downarrow$ 
+
+## Weakness of the maturity model
+
+- The maturity model does not account for leverage
+  - If $M_A = M_L$ this does not imply that the FI is immunized from interest rate changes
+  - Some assets are financed with equity
+- The maturity model ignores the timing of cash flows
+  - If $M_A = M_L$ and $\$A = \$L$ this also does not imply that the FI is immunized from interest rate changes
+  - Cash flows received before maturity need to be reinvested
+
+
+## Conclusion
+
+:::{}
+- Interest rate risk arises because of mismatch in maturity of assets and liabilities
+- Banks face reinvestment risk and refinancing risk when interest rates change
+- The repricing model focuses on the impact on net interest income but ignores market values
+- The maturity model takes into account market values but ignores the timing of cash flows
+- We need to account for market values and the timing of cash flows to immunize against interest rate risk 
+  - We need to estimate the duration of assets and liabilities
+:::
+
+- Next week: Interest Rate Risk II
