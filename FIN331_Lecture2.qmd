@@ -222,7 +222,7 @@ $$R \downarrow \ \implies Interest \ Income \ \downarrow \ < Interest \ Expense 
 
 ## NII and differential interest rates changes
 
-- As we saw earlier the, term spread is not constant
+- As we saw earlier, the term spread is not constant
 
 \begin{align}
 \Delta NII &= (RSA \times \Delta R_{RSA}) - (RSL \times \Delta R_{RSL})  \\
