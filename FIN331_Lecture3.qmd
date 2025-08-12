@@ -1,0 +1,389 @@
+---
+title: "Interest Rate Risk II"
+subtitle: "FIN 331 Lecture 3"
+author: 
+  name: "Andrew Ainsworth"
+  affiliation: "University of Wollongong"
+format: 
+  revealjs:
+    theme: FIN331_css_L2.scss
+    html-table-processing: none
+    chalkboard: 
+      buttons: false
+      theme: whiteboard
+      boardmarker-width: 2
+      transition: 1
+      src: FIN331_chalkboard_L3.json
+execute: 
+  eval: true
+  echo: false
+editor: 
+  markdown: 
+    wrap: 72
+    
+---
+
+## Lecture outline
+
+:::{}
+- Measuring interest rate risk with duration
+  - Derivation
+  - Calculation
+  - Interpretation
+- Managing interest rate risk with duration
+- Hedging interest rate risk with derivatives
+  - Futures
+  - Caps, floors and collars
+\
+\
+:::
+
+- Reading
+    - Ch 9, Ch 23 (pp. 739-756), Ch. 24 (pp. 799-807)
+
+
+## Duration intutition
+
+- Let's revisit the bond price-yield relationship
+
+```{r}
+#| output: false
+library(tidyverse)
+
+bondpricer <- function(ytm, coup, ttm) {
+  if(ytm==0) {
+    price = 1000*(coup/100)*ttm+1000}
+  else {
+    price = (1000*(coup/100))/(ytm)*(1-((1+ytm)^-ttm))+1000/((1+ytm)^ttm)}
+}
+
+yields_l3 <- tibble(Yield = seq(from = 0, to = 0.15, by = 0.005))
+coup_l3 <- tibble(Coupon = seq(from = 0, to = 10, by = 0.5))
+ttm_l3 <- tibble(Years = seq(from = 2, to = 30, by = 1))
+
+bond_prices_l3 <- crossing(yields_l3, coup_l3, ttm_l3)
+
+bondpricer_v = Vectorize(bondpricer)
+
+bond_prices_l3 <- bond_prices_l3 %>%
+  mutate(Price = bondpricer_v(Yield, Coupon, Years))
+
+ojs_define(bond_prices_l3_ojs = bond_prices_l3)
+
+```
+
+```{ojs}
+//| panel: sidebar
+
+viewof Coupon_pick = Inputs.range(
+  [0, 10], 
+  {value: 5, step: 0.5, label: "Coupon (%)"}
+)
+
+viewof ttm_pick = Inputs.range(
+  [2, 30], 
+  {value: 10, step: 1, label: "Time to Maturity"}
+)
+
+```
+
+```{ojs}
+
+filtered_dur = transpose(bond_prices_l3_ojs).filter(function(dur) {
+  return Coupon_pick == dur.Coupon & ttm_pick == dur.Years;
+})
+
+Plot.plot({
+  x: { label: "Yield", tickFormat: ".0%", ticks: 16, line: true, grid: true, domain: [0, 0.16]},
+  y: { label: "Price", zero:true, line: true, grid: true, domain: [0, 4000]},
+  marks: [Plot.line(filtered_dur, { x: "Yield", y: "Price", stroke: "red"})],
+    style: {
+      color: "#0b1554",
+      fontFamily: "Arial",
+      fontSize: "20px",
+      overflow: "visible"
+    },
+    height:500, width: 900, margin: 60
+  })
+
+```
+
+
+## Derivation of duration
+
+- Let's begin with the bond pricing equation
+
+$$P = \frac{C}{(1+R)} + \frac{C}{(1+R)^2} + \frac{C}{(1+R)^3} + ... + \frac{F + C}{(1+R)^N}$$
+
+:::{.fragment}
+- If we differentiate the bond price with respect to yield $(R)$
+
+$$
+\begin{align}
+\frac{dP}{dR} &= \frac{-C}{(1+R)^2} + \frac{-2C}{(1+R)^3} + \frac{-3C}{(1+R)^4} + ... + \frac{-N(F + C)}{(1+R)^{N+1}} \\[3px]
+ &= -\frac{1}{(1+R)} \left[ \frac{C}{(1+R)} + \frac{2C}{(1+R)^2} + \frac{3C}{(1+R)^3} + ... + \frac{N(F + C)}{(1+R)^{N}} \right]
+\end{align}
+$$
+
+:::
+
+:::{.fragment}
+- Let's divide both sides by $P$ and rearrange
+
+$$\frac{\frac{dP}{P}}{\frac{dR}{(1+R)}} = -\frac{1}{P} \left[ \frac{C}{(1+R)} + \frac{2C}{(1+R)^2} + \frac{3C}{(1+R)^3} + ... + \frac{N(F + C)}{(1+R)^{N}} \right]$$
+
+:::
+
+
+## Derivation of duration
+
+- Duration is the weighted-average time to receive cash flows where the present values of the cash flows are used as weights
+
+$$D = \frac{\displaystyle\sum_{t=1}^N CF_t \times DF_t \times t}{\displaystyle\sum_{t=1}^N CF_t \times DF_t} = \frac{\displaystyle\sum_{t=1}^N PV_t \times t}{\displaystyle\sum_{t=1}^N PV_t}$$
+
+- $D$ is the duration measured in years
+- $CF_t$ is the cash flow received at end of time period
+- $DF_t$ is the discount factor = $1/(1+R)^t$
+- $PV_t$ is the present value of cash flows
+- Be aware that you need adjust $t$ and $R$ if there is non-annual compounding
+  - For example, if compounding is semi-annual then double $t$ and halve $R$
+
+
+## Calculating duration
+
+- Let's consider a 2-year bond paying a 6% coupon and yielding 8%, with semi-annual compounding
+
+```{r}
+library(gt)
+library(dplyr)
+
+duration  <- data.frame(t = c(0.5, 1, 1.5, 2), cf = c(30, 30, 30, 1030))
+yield <- 0.08
+
+duration <- duration %>%
+  mutate(df = 1/(1+yield/2)^t,
+         cfdf = cf*df,
+         cfdft = cf*df*t)
+
+duration1 <- duration %>%
+  summarise_all(sum)
+
+price <- round(duration1[[4]], digit=2)
+cfdft <- round(duration1[[5]], digit=2)
+durval <- round(duration1[[5]]/duration1[[4]], digit=2)
+
+duration_gt <- duration %>%
+  gt(id = "dur") %>%
+  cols_label(t = md("$t$"), cf = md("$Cash \\ Flow \\ (CF)$"), df = md("$Discount \\ Factor \\ (DF)$"),
+             cfdf = md("$CF \\times DF$"), cfdft = md("$CF \\times DF \\times t$")) %>%
+  fmt_number(columns = df, decimals = 4) %>%
+  fmt_number(columns = c(cfdf, cfdft), decimals = 2) %>%
+  cols_align_decimal(columns = everything()) %>%
+  cols_align(align="center", columns = everything()) %>%
+    tab_options(table_body.hlines.style = "none",
+              table.width = pct(100)) %>%
+  opt_table_font(font = google_font(name = "Montserrat"), size = 24, color = "#0b1554") %>%
+  tab_style(style = cell_borders(sides = c("t", "b"), color = "#0b1554", weight = px(2)),
+            locations = cells_column_labels()) %>%
+  tab_style(style = cell_borders(sides = c("b"), color = "#0b1554", weight = px(2)),
+            locations = cells_body(columns = everything(), rows = nrow(duration)))
+
+duration_gt
+
+```
+
+- Price = $\sum{CF \times DF} = \$`r price`$
+- Duration = $\frac{\sum{CF \times DF \times t}}{Price}= \frac{`r cfdft`}{`r price`} = `r durval` \ \text{years}$
+
+
+
+## Features of duration
+
+- Duration increases with the time to maturity, but at a decreasing rate
+  - The payment of face value is moved further into the future, but discounting reduces the weight attached to the face value
+
+$$\frac{\partial D}{\partial N} > 0 \quad \text{and} \quad \frac{\partial^2 D}{\partial N^2} < 0$$
+
+:::{.fragment}
+- Duration decreases as yield increases
+  - Higher yields discount later cash flows more heavily leading to lower weights attached to the time these cash flows are received 
+
+$$\frac{\partial D}{\partial R} < 0$$
+
+:::
+
+:::{.fragment}
+- Duration decreases as coupon rate increases
+  - The investor recoups the initial investment faster when coupon payments are higher
+
+$$\frac{\partial D}{\partial C} < 0$$ 
+
+:::
+
+
+## The economic meaning of duration
+
+- Duration measures the interest rate sensitivity (elasticity) of a security's price to an interest rate change
+- As we saw earlier, we can interpret duration as the percentage change in price in response to an approximate percentage change in interest rates is:
+
+$$D = -\frac{\frac{\Delta P}{P}}{\frac{\Delta R}{1+R}}$$
+
+:::{.fragment}
+- The percentage change in price is:
+
+$$\frac{\Delta P}{P} = -D \left[ \frac{\Delta R}{1+R} \right]$$
+
+:::
+
+:::{.fragment}
+- We can define Modified Duration $(MD)$ as $\frac{D}{1+R}$:
+
+$$\frac{\Delta P}{P} = -MD \times \Delta R$$
+
+:::
+
+
+
+## Duration gap and interest rate risk
+
+- The duration of a portfolio ($D_p$) is the market value weighted ($W_i$) average of the individual security durations ($D_i$)
+  
+$$D_p = \sum_{i=1}^N W_i D_i$$
+
+:::{.fragment}
+- The impact of the duration gap on bank net worth ($\Delta E$) is:
+
+$$
+\begin{align}
+\frac{\Delta A}{A} &= -D_A \left[ \frac{\Delta R}{1+R} \right] \\
+\frac{\Delta L}{L} &= -D_L \left[ \frac{\Delta R}{1+R} \right] \\
+\Delta E &= \Delta A - \Delta L = -\left[ D_A - D_L k \right] \times A \times \left[ \frac{\Delta R}{1+R} \right]
+\end{align}
+$$
+
+- where $k = \frac{L}{A}$ is a measure of bank leverage
+:::
+
+## Duration gap and interest rate risk
+
+- What are the factors influencing the bank's net worth?
+- The leverage adjusted duration gap $[D_A - D_L k]$
+  - This gap reflects the degree of duration mismatch in a bank's balance sheet
+  - The larger this gap is in absolute terms the more exposed the bank is to interest rate changes
+- The size of the bank ($A$)
+  - Banks with a larger value of assets will have a larger dollar exposure to interest rate changes
+- The size of the interest rate change $\frac{\Delta R}{1+R}$
+  - The larger the change, the greater the bank's interest rate risk exposure
+- Bank can minimise interest rate risk by adjusting $D_A$, $D_L$ and $k$
+- If interest rate changes differ between assets and liabilities then the bank will need to consider $\Delta A$ and $\Delta L$ separately
+
+
+## Difficulties in applying the duration model
+
+- Duration matching can be costly
+  - It may not be simple to adjust the duration of assets and liabilities quickly
+  - But, hedging with derivatives can resolve this quickly and cheaply
+- Interest rate risk immunization is a dynamic problem
+  - Duration will change whenever interest rates change
+  - Duration changes with the passage of time (non-linear)
+  - Rebalancing is required
+- Bond prices do not change linearly with changes in interest rates
+  - Duration is an approximation
+  - We have ignored the convexity of the price yield relationship
+  - We can incorporate convexity to overcome this problem
+
+
+## Hedging interest rate risk with futures
+
+<!-- basic review of futures, definition, example chart -->
+
+## Hedging interest rate risk with futures
+
+- Microhedge
+  - Focuses on hedging risk from a specific asset or liability
+- Macrohedge
+  - Hedges the duration gap of the balance sheet
+  - Takes into account offsetting positions already on balance sheet
+- If the bank has a positive duration gap and interest rates are expected to increase 
+  - The bank will lose from its balance sheet position
+  - A short position in bond futures will gain when interest rates increase
+- If the bank has a negative duration gap and interest rates are expected to decrease
+  - The bank will lose from its balance sheet position
+  - A long position in bond futures market will gain when interest rates decrease 
+
+
+## Hedging interest rate risk with futures
+
+- The change in net worth from a change in interest rates
+
+$$\Delta E = -\left[D_A - D_L k \right] \times A \times \left[ \frac{\Delta R}{1+R} \right]$$
+
+:::{.fragment}
+- The change in value of a futures position is
+
+$$\Delta F = -D_F \times F \times \left[ \frac{\Delta R}{1+R} \right]$$
+
+- where $F=N_F \times P_F$
+- $N_F$ is the number of futures contracts, where each contract is of fixed size (e.g. $100,000)
+- $P_F$ is the price of the futures contract
+:::
+
+
+## Hedging interest rate risk with futures
+
+- We want to offset the loss on the balance sheet $(\Delta E)$ with a gain from the off balance sheet futures position $(\Delta F)$
+
+$$\left[ -D_F (N_F \times P_F) \frac{\Delta R}{1+R} \right] + \left[-(D_A-kD_L)A \frac{\Delta R}{1+R} \right] = 0$$
+
+:::{.fragment}
+- We can cancel terms 
+
+$$D_F (N_F \times P_F) + (D_A-kD_L)A = 0$$
+
+- And solve for $N_F$
+
+$$N_F = \frac{-(D_A-kD_L)A}{D_F \times P_F}$$
+
+:::
+
+:::{.fragment}
+- This is the number of bond futures contracts, at the price $P_F$, that will hedge interest rate risk
+- It is important to note that there is basis risk
+  - The change in spot and futures prices are not perfectly correlated
+  
+:::
+
+
+## Hedging with caps, floors and collars
+
+- Caps
+  - Buying a cap is buying call option(s) on interest rates
+  - The buyer pays an upfront premium
+  - The seller pays compensation to the buyer if interest rates are above the cap
+  - Banks could purchase caps when they have a positive duration gap ($D_A - kD_L > 0$)
+    - The value of assets will decline more than liabilities when interest rates rise
+- Floors
+  - Buying a floor is buying put option(s) on interest rates
+  - The buyer pays an upfront premium
+  - The seller pays compensation to the buyer if interest rates are below the floor
+  - Banks could purchase floors when they have a negative duration gap ($D_A - kD_L < 0$)
+    - The value of assets will increase less than liabilities when interest rates fall
+- Collars
+  - Banks can take a short position in a floor (cap) to help fund a long position in a cap (floor) 
+    - Banks purchase collars when they are concerned about excessive volatility of interest rates
+
+
+## Conclusion
+
+:::{}
+- The repricing model focuses on book value of assets and the impact on net interest income
+- The maturity model considers the market value of assets and their maturity but ignores the timing of the cash flows
+- Duration considers market values, maturity and the timing of cash flows of a bank's assets and liabilities
+- Banks needs to manage its duration gap to manage interest rate risk
+  - Banks can manipulate the duration of assets, the duration of liabilities or leverage to manage interest rate risk
+  - Banks can use derivatives to manage interest rate risk
+\
+\
+:::
+
+- Next week: Credit Risk
