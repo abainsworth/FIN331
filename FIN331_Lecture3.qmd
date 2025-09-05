@@ -161,7 +161,7 @@ duration  <- data.frame(t = c(0.5, 1, 1.5, 2), cf = c(30, 30, 30, 1030))
 yield <- 0.08
 
 duration <- duration %>%
-  mutate(df = 1/(1+yield/2)^t,
+  mutate(df = 1/(1+yield/2)^(t*2),
          cfdf = cf*df,
          cfdft = cf*df*t)
 
