@@ -1,0 +1,465 @@
+---
+title: "Market Risk"
+subtitle: "FIN 331 Lecture 7"
+author: 
+  name: "Andrew Ainsworth"
+  affiliation: "University of Wollongong"
+format: 
+  revealjs:
+    theme: FIN331_css_L2.scss
+    html-table-processing: none
+    chalkboard: 
+      buttons: false
+      theme: whiteboard
+      boardmarker-width: 2
+      transition: 1
+      src: FIN331_chalkboard_L7.json
+execute: 
+  eval: true
+  echo: false
+editor: 
+  markdown: 
+    wrap: 72
+    
+---
+
+## Lecture outline
+
+- What is market risk?
+- How can market risk be measured
+  - Value at risk (VaR)
+  - Historical simulations
+  - Monte Carlo simulations
+  - Expected shortfall
+- APRA regulatory considerations for market risk
+  - Standard method
+  - Internal model approach
+  - Stress-testing
+  - Back-testing
+
+\
+
+Reading: Ch 15
+
+
+## Definition of market risk
+
+- Market risk relates to the volatility in bank earnings that arises from its trading activities
+- Market risk is driven by changes in financial market conditions that impact asset prices, interest rates, market volatility and market liquidity
+- Market risk is linked to 
+  - Interest rate risk
+  - Credit risk 
+  - Sovereign risk
+  - Liquidity risk 
+- Market risk is related to the active trading of financial assets, liabilities and derivatives
+
+
+## Trading book vs. banking book
+
+- A bank's assets and liabilities can be classified as being either in the trading book or the banking book
+- The trading portfolio is made up of assets and liabilities that are traded in liquid financial markets 
+  - The trading book produces non-interest income and expenses 
+- The banking portfolio comprises assets and liabilities that are relatively illiquid and held for longer holding periods
+  - The banking book produces interest revenues, interest expense and fees
+
+::: {.fragment}
+:::: {.columns}
+
+::: {.column}
+- Banking book
+  - Cash
+  - Loans
+  - Premises
+  - Other illiquid assets
+  - Deposits
+  - Other illiquid borrowed funds
+  - Capital
+:::
+
+::: {.column}
+- Trading book
+  - Bonds
+  - Commodities
+  - Foreign exchange
+  - Equities
+  - Mortgage-backed securities
+  - Derivatives (off-balance sheet)
+:::
+
+::::
+:::
+
+## Why measure market risk?
+
+1. Management information
+    - Senior management can better understand the risk exposure taken by traders (relative to bank capital)
+1. Setting limits
+    - Trading limits can be set if market risk exposure can be measured allowing better risk management
+1. Resource allocation
+    - Adjusting returns for the level of risk taken to generate those returns will improve resource allocation and profitability
+1. Performance evaluation
+    - Risk-adjusting returns will allow for trades to be compensated for the risk taken to generate returns from their trading activities  
+1. Regulation
+    - Regulators permit certain banks to use their own market risk models to calculate their capital requirements
+
+
+## Value-at-risk
+
+- Value-at-Risk (VaR) definition
+  - “How much can I lose with $x\%$ probability over a given time horizon"
+  - "I am $x\%$ sure that the bank will not lose more than $VaR$ in the next $T$ days”
+  - RiskMetrics (or variance-covariance approach) assumes a normal distribution
+
+::: {.fragment}
+
+```{r}
+#| fig-align: "center"
+#| fig-height: 4.5
+
+library(ggplot2)
+
+normean = 0.5
+normsd = 1
+max = 4
+
+ggplot(data.frame(Return = c(-max, max)), aes(Return)) +
+  stat_function(fun = dnorm, args = list(mean = normean, sd = normsd), colour = "blue", linewidth=1) +
+  stat_function(fun = dnorm, args = list(mean = normean, sd = normsd), xlim = c(-max,-(1.96*normsd)+normean), 
+                geom ="area", fill = "red", alpha = 0.5) +
+  stat_function(fun = dnorm, args = list(mean = normean, sd = normsd), xlim = c(-(1.96*normsd), max), 
+                geom ="area", fill = "orange", alpha = 0.2) +
+  geom_vline(xintercept = normean, linewidth = 0.5, linetype = "solid", colour = "grey") +
+  geom_vline(xintercept = 0) +
+  labs(y="Probability Density", x = "Profit") +
+  theme(axis.title.x = element_text(size=16),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.line.x = element_line(linewidth = 0.5, linetype = "solid", colour = "black"),
+        axis.text = element_text(size=16),
+        axis.ticks = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family ="sans"),
+        plot.caption = element_text(hjust = 0),
+        plot.margin = margin(0.5, 1, 0.5, 1, "cm")) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 0.45)) +
+  scale_x_continuous(expand = expansion(mult = 0),
+                     breaks = seq(-max, max, max/4))
+
+```
+:::
+
+
+## Value-at-risk
+
+- We can define the Daily Earnings at Risk (DEaR) as
+
+$$\text{DEaR} = \text{\$MV of position} \times \text{Price volatility}$$
+
+- The price volatility is based on a particular point of the normal distribution (e.g. 99%)
+  - The distribution is estimated using historical mean and standard deviation of the asset's price
+  - The 99th percentile corresponds to $2.33 \sigma$
+  - The 95th percentile corresponds to $1.96 \sigma$
+- Market risk of fixed income securities is driven by yield changes
+  - Bond price volatility can be captured by modified duration $(MD=\frac{Duration}{1+R})$
+  - We can calculate the 99th percentile of historical yield changes
+
+
+$$\text{DEaR} = \text{\$MV of position} \times \text{Modified duration} \times \Delta R_{99\%}$$
+
+
+## Value-at-risk
+
+```{r}
+#| fig-align: "center"
+
+library(ggplot2)
+
+ggplot(data.frame(Return = c(-35, 35)), aes(Return)) +
+  stat_function(fun = dnorm, args = list(mean = 0, sd = 10), colour = "orange", linewidth=1) +
+  stat_function(fun = dnorm, args = list(mean = 0, sd = 10), xlim = c((2+1/3)*10, 35), 
+                geom ="area", fill = "blue", alpha = 0.8) +
+  geom_vline(xintercept = 0) +
+  labs(y="Probability Density", x = "Yield Change (bp)") +
+  theme(axis.title.x = element_text(size=16),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.line.x = element_line(linewidth = 0.5, linetype = "solid", colour = "black"),
+        axis.text = element_text(size=16),
+        axis.ticks = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(family ="sans"),
+        plot.caption = element_text(hjust = 0),
+        plot.margin = margin(0.5, 1, 0.5, 1, "cm")) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     limits = c(0, 0.045)) +
+  scale_x_continuous(expand = expansion(mult = 0),
+                     breaks = seq(-35, 35, 5))
+
+```
+
+
+## Value-at-risk 
+
+- We can calculate the earnings at risk over multiple days
+
+$$\text{N-day} \ VaR = DEaR \times \sqrt{N}$$
+
+- Portfolio aggregation
+  - It is important to consider correlation between assets in the trading book
+  - We can use portfolio theory to take this into account
+
+$$\sigma_p^2 = \sum_{i=1}^{n} \sum_{j=1}^{n} w_i w_j \rho_{ij} \sigma_i \sigma_j$$
+
+- We omit the weights as we are summing the separate DEaR
+
+$$DEaR_p = \sqrt{DEaR_1^2 + DEaR_2^2 + 2 \times\rho_{12} \times DEaR_1 \times DEaR_2}$$
+
+
+## Criticisms of RiskMetrics approach
+
+- Assumption of normal distribution for all asset returns is not accurate
+- Asset distributions have “fat tails” which underestimates the risk of extreme losses
+- RiskMetrics VaR assumes that daily volatility is constant 
+- RiskMetrics VaR assumes there is no autocorrelation: shocks are independent
+- These criticisms all point to an underestimation of market risk 
+- It is important to note that there are mathematical alternatives that can resolve a lot of these issues
+
+
+## Historic approach to VaR
+
+- An alternative approach uses historical data to measure risk
+- This approach has a number of advantages
+  - Simplicity 
+  - Asset returns do not need to be normally distributed
+  - Correlation and standard deviations do not need to be calculated
+- This approach revalues the current trading portfolio using prices that existed on each day over the past 500 days (or some other length of time)
+  - There are ~ 250 trading days in a calendar year
+- The VaR is the 1% worst case value out of these 500 values (i.e. 5th lowest value)
+  - Note that the worst-case scenario can be directly observed
+- This approach can use different historical windows (e.g. 1000 days)
+  - But, the window needs to be representative of the future 
+
+
+## Historic approach to VaR
+
+```{r}
+
+library(tidyverse)
+
+agsrates = read_csv("f2-data.csv", skip = 10, show_col_types = FALSE)
+
+agsrates <- agsrates %>%
+  rename(Date = "Series ID") %>%
+  select(c(Date, FCMYGBAG5D,	FCMYGBAG10D)) %>%
+  mutate(Delta = 100*(FCMYGBAG10D - lag(FCMYGBAG10D))) %>%
+  drop_na()
+
+agsrates$Date <- dmy(agsrates$Date)
+
+agsrates <- agsrates %>%
+  slice_tail(n=500)
+
+delta99 <- round(quantile(agsrates$Delta, probs = 0.99)[[1]], digit = 2)
+delta_mean <- round(mean(agsrates$Delta), digit=2)
+delta_std <- round(sd(agsrates$Delta), digit=2)
+
+```  
+
+- Let's consider the daily change in yield on the 10-year Australian Government bond for the last 500 days
+  - The 99th percentile daily yield change is `r delta99` bp
+
+```{r}
+
+agsrates %>%
+  ggplot(aes(x = Date, y = Delta)) +
+  geom_col(colour = "royalblue") +
+  labs(x = "Date", y = "10-year Bond Change in Yield (Basis points)") +
+  theme(axis.title.x = element_text(size=12),
+        axis.title.y = element_text(size=12),
+        axis.text = element_text(size=12),
+        panel.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey", linewidth = 0.5, linetype = "dotted"),
+        text = element_text(family ="sans"),
+        legend.title = element_blank(),
+        legend.text = element_text(size=11),
+        plot.margin = margin(0.5, 1, 0.5, 1, "cm")) +
+  scale_y_continuous(limits = c(-20, 20), expand = expansion(mult = 0)) +
+  scale_x_date(expand = expansion(mult = 0), 
+               date_breaks = "4 month",
+               date_labels = "%b-%Y") +
+  labs(caption = "Source: RBA") +
+  theme(plot.caption = element_text(hjust=0))
+
+```  
+
+
+## Monte Carlo simulation
+
+- We can use Monte Carlo simulation to generate additional observations that maintain the same variance (covariance) structure
+  - We can use recent mean, standard deviations and correlations to create a normal distribution from which we can randomly draw 10,000 observations
+  - We obtain a large number of realistic values to calculate VaR
+  - This can be extended to multiple assets by using the covariance matrix
+- Based on the asset values we can estimate the VaR as the 100th worst simulated loss out of 10,000
+- Let's use the daily change in yield on the 10-year Australian Government bond for the last 500 days to generate 10,000 simulated daily yield changes
+  - Mean daily change in yield = `r delta_mean` basis points
+  - Standard deviation of daily change in yield = `r delta_std` basis points
+- We want to estimate $\Delta R_{99\%}$ to calculate $\text{DEaR}$
+
+$$\text{DEaR} = \text{\$MV of position} \times \text{Modified duration} \times \Delta R_{99\%}$$
+
+
+## Monte Carlo simulation
+
+```{r}
+
+set.seed(450)
+
+delta_sim <- data.frame(dbp_sim = rnorm(10000, mean = delta_mean, sd = delta_std))
+
+sim99 <- round(quantile(delta_sim$dbp_sim, probs = 0.99)[[1]], digit = 2)
+sim_mean <- round(mean(delta_sim$dbp_sim), digit=2)
+sim_std <- round(sd(delta_sim$dbp_sim), digit=2)
+
+delta_sim %>%
+  ggplot(aes(dbp_sim)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1, fill = "firebrick", colour = "grey") +
+  stat_function(fun = dnorm, args = list(mean = delta_mean, sd = delta_std), colour = "blue", linewidth=1) +
+  labs(x = "Daily change in yield (bp)", y = "Density") +
+  theme(axis.title.x = element_text(size=12),
+        axis.title.y = element_text(size=12),
+        axis.text = element_text(size=12),
+        panel.background = element_blank(),
+        panel.border = element_rect(colour = "black", fill = NA, linewidth = 0.5),
+        panel.grid.major.y = element_line(colour = "grey", linewidth = 0.5, linetype = "dotted"),
+        text = element_text(family ="sans"),
+        legend.title = element_blank(),
+        legend.text = element_text(size=11)) +
+  scale_y_continuous(expand = expansion(mult = 0),
+                     breaks = seq(0, 0.08, 0.01),
+                     limits = c(0, 0.08)) +
+  scale_x_continuous(expand = expansion(mult = 0),
+                     breaks = seq(-25, 25, 5))
+
+
+```
+
+::: {.fragment}
+- The $\Delta R_{99\%}$ is `r sim99` bp
+  - The mean from the simulation was `r sim_mean` bp and the standard deviation was `r sim_std` bp
+:::
+
+
+## Expected shortfall
+
+- Expected shortfall calculates the average value of losses that occur beyond the 99th percentile of the distribution 
+  - Also known as conditional value at risk (CVaR)
+- This is important when distributions are non-normal 
+- For discrete profit and loss values $(V)$, we can estimate expected shortfall (ES) as 
+
+$$\text{ES} = -E(\Delta V | \Delta V < - \text{VaR})$$
+
+::: {.fragment}
+- The expected shortfall can be calculated for a specific confidence level $c$ (e.g. 99%) of a continuous probability distribution:
+ 
+$$\text{ES}(c) = \frac{1}{1-c} \int_c^1 \text{VaR}(u)\text{du}$$
+
+- For continuous probability distributions expected shortfall uses a scaling factor based on a fat-tailed student’s t distribution using $2.665 \sigma$ for the 99% confidence level
+:::
+
+
+## APRA regulation and market risk
+
+- [Prudential Standard APS 116 Capital Adequacy: Market Risk](https://www.legislation.gov.au/F2024L01519/latest/text){target="_blank"} details market risk measurement for Australian ADIs
+- ADIs need to hold capital to cover their exposure to market risk
+  - Market risk emanates from interest rate, foreign exchange, commodity, equity and derivatives exposures
+- APRA decomposes market risk into two components
+  - General market risk: the risk of loss owing to changes in the general level of market prices or interest rates
+  - Specific risk: the risk that a security's value will change due to issuer-specific factors
+
+::: {.fragment}
+- Capital charges for market risk exposures can be calculated using the *Standard Method* or the *Internal Model Approach*
+  - The standard method prescribes the capital charges required for different market risk exposures
+  - The internal model approach is based on the use of value-at-risk (VaR) and requires approval from APRA
+  - Banks can use a combination of the internal model approach and the standard method
+:::
+
+
+## The standard method
+
+- Some examples of the prescribed capital charges under the standard method
+- No capital charge for Government bonds rated AA- or above
+- 1.6% capital charge for Government bonds rated BBB- to A+ and with >24 months to maturity
+- Equity positions are charged at 8%
+- Net short or net long positions in foreign exchange are charge at 8%
+- General market risk related to interest rates
+  - ADIs can use the maturity method or apply to APRA to use the duration method
+  - The capital charge increases with time to maturity based upon different maturity buckets up to a maximum of 12.5%
+
+
+## Internal model approach
+
+- An ADI using an internal model has a daily capital requirement set as 
+  - The higher of:
+    - An average of the daily VaR on each of the preceding sixty trading days, multiplied by a scaling factor
+    - Its previous day’s VaR
+  - The higher of:
+    - An average of the stressed VaR calculated over the preceding sixty trading days, multiplied by a scaling factor
+    - Its latest available stressed VaR
+- The scaling factor is the sum of the VaR multiplication factor and a plus factor
+- APRA sets the minimum multiplication factor at three but increases this if it is not satisfied with the ADIs model
+  - More on the plus factor later
+
+
+## Internal model approach
+
+- ADIs need to identify and model the risk factors that impact its market risk exposures (both on-balance sheet and off-balance sheet)
+  - For example, credit spreads, term spreads, etc
+- The VaR model must capture non-linearities as well as correlation risk and basis risk
+- A 99% VaR using a 10-day holding period must be calculated daily
+  - Shorter holding period VaR that are scaled up to ten days require APRA approval
+- The sample period for calculating VaR must have a minimum length of one year
+- An ADI may only recognise empirical correlations within and across broad risk categories if approved in writing by APRA
+
+
+## Stress testing the VaR
+
+- ADIs must calculate a stressed VaR
+- This is a 10-day, 99th percentile VaR of the current portfolio, with VaR model inputs calibrated to historical data from a continuous 12-month period of significant financial stress relevant to the ADI’s portfolio
+- The stress test must be incorporate both market risk and liquidity aspects of market disturbances 
+- The stress test must also address
+  - Illiquidity/gapping of prices
+  - Concentrated positions (in relation to market turnover)
+  - One-way markets
+  - Non-linear products/deep out-of-the money positions
+  - Events and jumps-to-defaults
+  - Other risks such as recovery rate uncertainty, implied correlations, or skew risk
+
+
+## Back-testing the VaR
+
+- ADIs must back-testing the model comparing the 1-day VaR with the realised daily profit/loss 
+- This must use the past 12 months of VaR and profit/loss
+- Exceptions are defined as losses exceeding the VaR
+- The back-testing determines the plus factor that feeds into the capital charge 
+  - The plus factor is 0% if there are <4 exceptions
+  - The plus factor is 40% if there are 5 exceptions
+  - The plus factor is 50% if there are 6 exceptions
+  - The plus factor is 65% if there are 7 exceptions
+  - The plus factor is 75% if there are 8 exceptions
+  - The plus factor is 85% if there are 9 exceptions
+  - The plus factor is 100% if there are >9 exceptions
+- ADIs must back-test using actual trading outcomes and hypothetical trading outcomes based on the previous end of day portfolio holdings
+
+
+## Conclusion
+
+- History has shown that it is vital for banks to monitor and manage market risk
+- Value-at-risk is the primary measured used by banks
+  - There are many variants and approaches to calculate VaR
+- Expected shortfall considers how extreme the losses could be
+- APRA provides ADIs with two approaches to measure market risk and claculate capital charges
+  - Standard model for less complex ADIs
+  - Internal model approach for larger and more complex ADIs based on VaR
+  - Stress testing and back-testing are important aspects of market risk management
